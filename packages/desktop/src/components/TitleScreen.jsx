@@ -2,15 +2,17 @@ import { useState, useEffect } from 'react'
 
 const ITEMS = [
   { label: 'MORNING PAGES' },
+  { label: 'FREE WRITE'    },
   { label: 'EXIT'          },
 ]
 
-export default function TitleScreen({ onMorningPages, onExit }) {
+export default function TitleScreen({ onMorningPages, onFreeWrite, onExit }) {
   const [cursor, setCursor] = useState(0)
 
   function activate(i) {
     if (i === 0) onMorningPages()
-    if (i === 1) onExit()
+    if (i === 1) onFreeWrite()
+    if (i === 2) onExit()
   }
 
   useEffect(() => {

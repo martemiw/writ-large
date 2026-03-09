@@ -65,18 +65,22 @@ def calc_median(keystrokes):
 
 # ── File I/O ──────────────────────────────────────────────────────────────────
 
-def save_session(text, keystrokes, start_ms, median_ms, elapsed_s, config):
+def save_session(text, keystrokes, start_ms, median_ms, elapsed_s, config, mode='pages'):
     out = get_output_dir(config)
     out.mkdir(parents=True, exist_ok=True)
     date = today_date()
 
+    # Freewrite uses a time-stamped stem so multiple sessions can coexist
+    time_tag = now_time().replace(':', '')  # HHMMSS
+    stem = f'{date}-freewrite-{time_tag}' if mode == 'freewrite' else date
+
     # 1. Plain text (matches desktop exactly)
-    text_path = out / f'{date}.txt'
+    text_path = out / f'{stem}.txt'
     text_path.write_text(text, encoding='utf-8')
 
     # 2. Keystroke timing
     if keystrokes:
-        keys_path = out / f'{date}.keys.json'
+        keys_path = out / f'{stem}.keys.json'
         keys_path.write_text(
             json.dumps({'start': start_ms, 'keys': keystrokes}),
             encoding='utf-8'
@@ -87,6 +91,7 @@ def save_session(text, keystrokes, start_ms, median_ms, elapsed_s, config):
     entry = json.dumps({
         'date': date,
         'time_of_day': now_time(),
+        'mode': mode,
         'words': count_words(text),
         'median_ms': median_ms,
         'duration_s': elapsed_s,
@@ -150,7 +155,7 @@ def put(scr, y, x, text, attr=0):
 
 # ── Title screen ──────────────────────────────────────────────────────────────
 
-TITLE_ITEMS = ['MORNING PAGES', 'EXIT']
+TITLE_ITEMS = ['MORNING PAGES', 'FREE WRITE', 'EXIT']
 
 def run_title(scr):
     """Returns 'write' or 'quit'."""
@@ -196,7 +201,9 @@ def run_title(scr):
         elif ch in (curses.KEY_DOWN, ord('j')):
             selected = (selected + 1) % len(TITLE_ITEMS)
         elif ch in (10, 13):  # Enter
-            return 'quit' if selected == 1 else 'write'
+            if selected == 0: return 'write'
+            if selected == 1: return 'freewrite'
+            return 'quit'
         elif ch in (ord('q'), ord('Q'), 27):
             return 'quit'
 
@@ -341,6 +348,111 @@ def run_writing(scr, config):
                 'path':       str(text_path),
             }
 
+# ── Free write screen ─────────────────────────────────────────────────────────
+
+def render_freewrite(scr, buffer, cursor_on, elapsed_s, word_count):
+    scr.erase()
+    h, w = scr.getmaxyx()
+    mid_y    = h // 2
+    cursor_x = int(w * 0.70)
+
+    words   = buffer.split()
+    visible = words[-VISIBLE_WORDS:] if len(words) > VISIBLE_WORDS else words
+    n       = len(visible)
+
+    x = cursor_x - 1
+    for i in range(n - 1, -1, -1):
+        word = visible[i]
+        attr = word_attr(i, n)
+        if i < n - 1:
+            x -= 1
+            if 0 <= x < w:
+                put(scr, mid_y, x, ' ', attr)
+        for ch in reversed(word):
+            x -= 1
+            if x < 0:
+                break
+            put(scr, mid_y, x, ch, attr)
+        if x < 0:
+            break
+
+    cursor_char = '_' if cursor_on else ' '
+    put(scr, mid_y, cursor_x, cursor_char, base())
+
+    hud_y    = h - 3
+    time_str = format_elapsed(elapsed_s)
+    count_str = str(word_count)
+    hint_str  = 'ESC · DONE'
+    put(scr, hud_y,     3,                              time_str,  dim())
+    put(scr, hud_y,     w - len(count_str) - 3,         count_str, dim())
+    put(scr, hud_y + 1, w - len(hint_str)  - 3,         hint_str,  dim())
+
+    scr.refresh()
+
+
+def run_freewrite(scr, config):
+    """Free write session — Escape saves and ends, Ctrl-C/D quits without saving."""
+    curses.curs_set(0)
+    scr.timeout(50)
+
+    buffer      = ''
+    keystrokes  = []
+    last_key_ms = None
+    start_ms    = int(time.time() * 1000)
+    start_mono  = time.monotonic()
+    cursor_on   = True
+    last_blink  = time.monotonic()
+
+    while True:
+        now        = time.monotonic()
+        elapsed_s  = int(now - start_mono)
+        word_count = count_words(buffer)
+
+        if now - last_blink >= BLINK_HALF:
+            cursor_on  = not cursor_on
+            last_blink = now
+
+        render_freewrite(scr, buffer, cursor_on, elapsed_s, word_count)
+
+        ch = scr.getch()
+        if ch == -1:
+            continue
+
+        # Escape → save and finish
+        if ch == 27:
+            final_s   = int(time.monotonic() - start_mono)
+            median_ms = calc_median(keystrokes)
+            text_path = save_session(buffer, keystrokes, start_ms, median_ms, final_s, config,
+                                     mode='freewrite')
+            return {
+                'word_count': count_words(buffer),
+                'elapsed':    final_s,
+                'median_ms':  median_ms,
+                'path':       str(text_path),
+            }
+
+        # Ctrl-C, Ctrl-D → quit without saving
+        if ch in (3, 4):
+            return None
+
+        if ch in (127, curses.KEY_BACKSPACE, curses.KEY_DC):
+            continue
+
+        if ch in (10, 13):
+            char = '\n'
+        elif 32 <= ch <= 126:
+            char = chr(ch)
+        else:
+            continue
+
+        buffer += char
+
+        now_ms      = int(time.time() * 1000)
+        delta       = 0 if last_key_ms is None else now_ms - last_key_ms
+        last_key_ms = now_ms
+        keystrokes.append({'k': char, 'd': delta})
+
+
 # ── Done screen ───────────────────────────────────────────────────────────────
 
 def run_done(scr, result):
@@ -387,6 +499,13 @@ def main(scr):
     if action == 'quit':
         return
 
+    if action == 'freewrite':
+        result = run_freewrite(scr, config)
+        if result is not None:
+            run_done(scr, result)
+        return
+
+    # Morning Pages
     if get_today_path(config).exists():
         run_blocked(scr)
         return

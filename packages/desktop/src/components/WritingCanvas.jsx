@@ -17,7 +17,7 @@ function calcMedian(keystrokes) {
     : deltas[mid]
 }
 
-export default function WritingCanvas({ config }) {
+export default function WritingCanvas({ config, mode = 'pages' }) {
   const [buffer, setBuffer] = useState('')
   const [done, setDone] = useState(false)
   const [savedPath, setSavedPath] = useState('')
@@ -28,9 +28,13 @@ export default function WritingCanvas({ config }) {
   const timerRef = useRef(null)
   const keystrokesRef = useRef([])
   const lastKeyTimeRef = useRef(null)
+  const bufferRef = useRef('')
 
-  const target = config?.wordTarget ?? 750
+  const target = mode === 'pages' ? (config?.wordTarget ?? 750) : null
   const wordCount = countWords(buffer)
+
+  // Keep bufferRef current so the Escape handler always reads the latest text
+  useEffect(() => { bufferRef.current = buffer }, [buffer])
 
   // ── Session timer ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -40,31 +44,38 @@ export default function WritingCanvas({ config }) {
     return () => clearInterval(timerRef.current)
   }, [])
 
-  // ── Save once when target is reached ────────────────────────────────────
+  // ── Shared save logic ────────────────────────────────────────────────────
+  function doSave(text) {
+    if (saveAttempted.current) return
+    saveAttempted.current = true
+    const median = calcMedian(keystrokesRef.current)
+    const finalElapsed = Math.floor((Date.now() - startRef.current) / 1000)
+    setMedianMs(median)
+    window.writlarge.saveSession(text, {
+      mode,
+      startTime: startRef.current,
+      keystrokes: keystrokesRef.current,
+      medianMs: median,
+      elapsed: finalElapsed,
+    }).then((result) => {
+      if (result.success) {
+        clearInterval(timerRef.current)
+        setElapsed(finalElapsed)
+        setSavedPath(result.path)
+        setDone(true)
+      } else {
+        saveAttempted.current = false
+        console.error('Save failed:', result.error)
+      }
+    })
+  }
+
+  // ── Auto-save when target reached (pages mode only) ──────────────────────
   useEffect(() => {
-    if (wordCount >= target && !saveAttempted.current) {
-      saveAttempted.current = true
-      const median = calcMedian(keystrokesRef.current)
-      const finalElapsed = Math.floor((Date.now() - startRef.current) / 1000)
-      setMedianMs(median)
-      window.writlarge.saveSession(buffer, {
-        startTime: startRef.current,
-        keystrokes: keystrokesRef.current,
-        medianMs: median,
-        elapsed: finalElapsed,
-      }).then((result) => {
-        if (result.success) {
-          clearInterval(timerRef.current)
-          setElapsed(finalElapsed)
-          setSavedPath(result.path)
-          setDone(true)
-        } else {
-          saveAttempted.current = false
-          console.error('Save failed:', result.error)
-        }
-      })
+    if (mode === 'pages' && target !== null && wordCount >= target) {
+      doSave(buffer)
     }
-  }, [wordCount, target, buffer])
+  }, [wordCount, target, buffer, mode])
 
   // ── Keyboard handler ─────────────────────────────────────────────────────
   const handleKeyDown = useCallback(
@@ -74,6 +85,13 @@ export default function WritingCanvas({ config }) {
 
       // Let OS handle Cmd/Ctrl combos (Cmd+Q, etc.)
       if (e.metaKey || e.ctrlKey) return
+
+      // Freewrite: Escape saves and ends the session
+      if (mode === 'freewrite' && e.key === 'Escape') {
+        e.preventDefault()
+        doSave(bufferRef.current)
+        return
+      }
 
       // Hard-block backspace and delete — no take-backs
       if (e.key === 'Backspace' || e.key === 'Delete') {
@@ -87,8 +105,8 @@ export default function WritingCanvas({ config }) {
         return
       }
 
-      // No new input after target is reached
-      if (wordCount >= target) return
+      // Pages mode: no new input after target is reached
+      if (mode === 'pages' && target !== null && wordCount >= target) return
 
       e.preventDefault()
       setBuffer((prev) => prev + (e.key === 'Enter' ? '\n' : e.key))
@@ -99,7 +117,7 @@ export default function WritingCanvas({ config }) {
       lastKeyTimeRef.current = now
       keystrokesRef.current.push({ k: e.key === 'Enter' ? '\n' : e.key, d: delta })
     },
-    [done, wordCount, target]
+    [done, wordCount, target, mode]
   )
 
   useEffect(() => {
@@ -124,7 +142,7 @@ export default function WritingCanvas({ config }) {
         <FadeText buffer={buffer} />
         <span className="cursor-underscore" aria-hidden="true">_</span>
       </div>
-      <HUD wordCount={wordCount} target={target} elapsed={elapsed} />
+      <HUD wordCount={wordCount} target={target} elapsed={elapsed} mode={mode} />
     </div>
   )
 }

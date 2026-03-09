@@ -98,17 +98,22 @@ ipcMain.handle('save-session', (_event, text, meta = {}) => {
   const config = getConfig()
   const dir = getOutputDir(config)
   const { date, time } = getTodayStamp()
+  const mode = meta.mode ?? 'pages'
+
+  // Freewrite files get a time-stamped stem so multiple sessions can coexist
+  const timeTag = time.replace(/:/g, '')  // HHMMSS
+  const stem = mode === 'freewrite' ? `${date}-freewrite-${timeTag}` : date
 
   try {
     fs.mkdirSync(dir, { recursive: true })
 
-    // 1. Plain text file (existing behaviour)
-    const textPath = path.join(dir, `${date}.txt`)
+    // 1. Plain text file
+    const textPath = path.join(dir, `${stem}.txt`)
     fs.writeFileSync(textPath, text, 'utf-8')
 
     // 2. Keystroke timing file
     if (meta.keystrokes && meta.keystrokes.length > 0) {
-      const keysPath = path.join(dir, `${date}.keys.json`)
+      const keysPath = path.join(dir, `${stem}.keys.json`)
       const keysData = JSON.stringify({ start: meta.startTime, keys: meta.keystrokes })
       fs.writeFileSync(keysPath, keysData, 'utf-8')
     }
@@ -118,6 +123,7 @@ ipcMain.handle('save-session', (_event, text, meta = {}) => {
     const statsEntry = JSON.stringify({
       date,
       time_of_day: time,
+      mode,
       words: text.match(/\S+/g)?.length ?? 0,
       median_ms: meta.medianMs ?? 0,
       duration_s: meta.elapsed ?? 0,
