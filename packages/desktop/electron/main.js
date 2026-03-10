@@ -136,4 +136,21 @@ ipcMain.handle('save-session', (_event, text, meta = {}) => {
   }
 })
 
+ipcMain.handle('list-pages', () => {
+  const config = getConfig()
+  const dir = getOutputDir(config)
+  try {
+    if (!fs.existsSync(dir)) return []
+    return fs.readdirSync(dir)
+      .filter(f => /^\d{4}-\d{2}-\d{2}\.txt$/.test(f))
+      .sort()
+      .reverse()
+      .map(f => ({ date: f.replace('.txt', ''), path: path.join(dir, f) }))
+  } catch (_) { return [] }
+})
+
+ipcMain.handle('read-file', (_event, filePath) => {
+  try { return fs.readFileSync(filePath, 'utf-8') } catch (_) { return '' }
+})
+
 ipcMain.handle('quit', () => app.quit())

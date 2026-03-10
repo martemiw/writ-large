@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react'
 import TitleScreen from './components/TitleScreen'
 import WritingCanvas from './components/WritingCanvas'
 import BlockedScreen from './components/BlockedScreen'
+import FilePickerScreen from './components/FilePickerScreen'
+import EditorCanvas from './components/EditorCanvas'
 
 export default function App() {
-  const [screen, setScreen] = useState('title') // title | loading | blocked | writing
+  const [screen, setScreen] = useState('title') // title | loading | blocked | writing | picker | editing
   const [config, setConfig] = useState(null)
-  const [mode, setMode] = useState('pages') // pages | freewrite
+  const [writeMode, setWriteMode] = useState('pages') // pages | freewrite
+  const [editFile, setEditFile] = useState(null)
 
-  // Load config eagerly so it's ready when Morning Pages starts
   useEffect(() => {
     window.writlarge.getConfig().then(setConfig)
   }, [])
@@ -19,18 +21,25 @@ export default function App() {
     if (alreadyDone) {
       setScreen('blocked')
     } else {
-      setMode('pages')
+      setWriteMode('pages')
       setScreen('writing')
     }
   }
 
   function startFreeWrite() {
-    setMode('freewrite')
+    setWriteMode('freewrite')
     setScreen('writing')
   }
 
-  if (screen === 'title')   return <TitleScreen onMorningPages={startMorningPages} onFreeWrite={startFreeWrite} onExit={() => window.writlarge.quit()} />
+  function openFile(file) {
+    setEditFile(file)
+    setScreen('editing')
+  }
+
+  if (screen === 'title')   return <TitleScreen onMorningPages={startMorningPages} onFreeWrite={startFreeWrite} onEdit={() => setScreen('picker')} onExit={() => window.writlarge.quit()} />
   if (screen === 'loading') return <div className="screen" />
   if (screen === 'blocked') return <BlockedScreen />
-  return <WritingCanvas config={config} mode={mode} />
+  if (screen === 'picker')  return <FilePickerScreen onSelect={openFile} onBack={() => setScreen('title')} />
+  if (screen === 'editing') return <EditorCanvas file={editFile} onExit={() => setScreen('title')} />
+  return <WritingCanvas config={config} mode={writeMode} />
 }

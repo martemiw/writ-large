@@ -238,6 +238,186 @@ body {
   opacity: 0.45;
 }
 
+/* ── File picker ─────────────────────────────────────────────────────────── */
+
+.picker-screen {
+  align-items: center;
+  justify-content: center;
+}
+
+.picker-body {
+  font-family: 'Courier New', Courier, monospace;
+  color: #fff;
+  width: 34ch;
+}
+
+.picker-header {
+  font-size: 1.2rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.25);
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 0.5rem 0;
+  margin-bottom: 2rem;
+}
+
+.picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 3rem;
+}
+
+.picker-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  font-size: 1.5rem;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: pointer;
+}
+
+.picker-item--active {
+  color: #fff;
+}
+
+.picker-arrow {
+  display: inline-block;
+  width: 1em;
+}
+
+.picker-item--active .picker-arrow {
+  animation: blink-cursor 1s step-end infinite;
+}
+
+.picker-empty {
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.25);
+  margin-bottom: 3rem;
+}
+
+.picker-hint {
+  font-size: 1.0rem;
+  letter-spacing: 0.14em;
+  color: rgba(255, 255, 255, 0.14);
+  text-transform: uppercase;
+}
+
+/* ── Editor ──────────────────────────────────────────────────────────────── */
+
+.editor-viewport {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Column is horizontally centred; translateY is set via inline style */
+.editor-column {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 65ch;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 1.5rem;
+  line-height: 1.8;
+  color: #fff;
+}
+
+.editor-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Block cursor: invert colours */
+.editor-cursor {
+  background: rgba(255, 255, 255, 0.85);
+  color: #000;
+}
+
+.editor-cursor--hidden {
+  background: transparent;
+  color: #fff;
+}
+
+/* Gradient overlay fading text below the cursor line to black (~8 lines) */
+.editor-fade-below {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: calc(50vh + 1.35rem);   /* 1.35rem = half a line below cursor centre */
+  bottom: 0;
+  background: linear-gradient(
+    to bottom,
+    transparent           0%,
+    rgba(0, 0, 0, 0.10)  15%,
+    rgba(0, 0, 0, 0.38)  33%,
+    rgba(0, 0, 0, 0.68)  52%,
+    rgba(0, 0, 0, 0.90)  68%,
+    black                80%,
+    black               100%
+  );
+  pointer-events: none;
+  z-index: 10;
+}
+
+/* HUD: file date (left) + line position (right) */
+.editor-hud {
+  position: fixed;
+  bottom: 3.5rem;   /* sits above mode bar */
+  left: 2.5rem;
+  right: 2.5rem;
+  display: flex;
+  justify-content: space-between;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 1.1rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* Mode bar: bottom strip showing current nav mode */
+.editor-modebar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 1.0rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.modebar-mode {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.modebar-hint {
+  color: rgba(255, 255, 255, 0.18);
+}
+
+/* Word mode: brighten to signal active state */
+.editor-modebar--word .modebar-mode {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.editor-modebar--word .modebar-hint {
+  color: rgba(255, 255, 255, 0.4);
+}
+
 /* ── Title screen ────────────────────────────────────────────────────────── */
 
 .title-body {
